@@ -1,8 +1,9 @@
 services:
   - type: worker
     name: proveedor-bot
-    env: python
-    region: oregon
-    plan: free
-    buildCommand: pip install -r src/requirements.txt
-    startCommand: python src/bot.py
+    runtime: python
+    envVars:
+      TELEGRAM_TOKEN:
+        fromSecret: TELEGRAM_TOKEN
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
