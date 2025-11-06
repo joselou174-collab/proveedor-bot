@@ -1,0 +1,11 @@
+
+services:
+  - type: worker
+    name: proveedor-bot
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: TELEGRAM_TOKEN
+        sync: false
