@@ -41,8 +41,8 @@ PAY_PLACES_TEXT = (
     "• Transferencia bancaria\n"
     "• Depósitos en OXXO\n"
     "• Depósitos en Farmacia Guadalajara\n"
-    "• Cualquier tienda que haga depósitos\n\n"
-    "Si eliges transferencia, te mando los datos al final del pedido ✅"
+    "• Tiendas que hagan depósitos\n\n"
+    "Puedo mandarte los datos exactos al finalizar tu pedido ✅"
 )
 
 FAQ_TEXT = (
@@ -82,11 +82,8 @@ PAYMENT_DETAILS = (
     "Cuando realices el pago, envía el comprobante aquí o a @El_Proveedor_confiable ✅"
 )
 
-OWNER_HANDLE = "@El_Proveedor_confiable"
-
-
 # -------------------------------------------
-# ESTADOS DE CONVERSACIÓN
+# ESTADOS PARA LA CONVERSACIÓN
 # -------------------------------------------
 ADDRESS, NAME, PHONE, DENOM, PAYMETHOD = range(5)
 
@@ -103,53 +100,37 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 # -------------------------------------------
-# INTENTS
+# FUNCIONES DE INTELIGENCIA / INTENTS
 # -------------------------------------------
 def contains(text: str, kws):
     t = text.lower()
     return any(k in t for k in kws)
 
-def intent_order(text):
-    return contains(text, [
+def intent_order(t):
+    return contains(t, [
         "como encargo", "cómo encargo",
         "como hago el pedido", "cómo hago el pedido",
         "quiero el de", "quiero un paquete",
         "hacer pedido", "encargar", "ordenar", "comprar"
     ])
 
-def intent_shipping(text):
-    return contains(text, [
-        "cuanto tarda", "cuánto tarda",
-        "tarda en llegar", "donde lo mandan",
-        "envio", "envío", "entrega"
-    ])
+def intent_shipping(t):
+    return contains(t, ["cuanto tarda", "tarda en llegar", "envío", "envio", "entrega"])
 
-def intent_payplaces(text):
-    return contains(text, [
-        "donde pago", "dónde pago",
-        "donde transfiero", "dónde transfiero",
-        "donde deposito", "dónde deposito",
-        "como pago"
-    ])
+def intent_payplaces(t):
+    return contains(t, ["donde pago", "transfiero", "deposito", "depósito", "cómo pago"])
 
-def intent_faq(text):
-    return contains(text, [
-        "preguntas frecuentes", "faq",
-        "procedimiento", "cómo funciona"
-    ])
+def intent_faq(t):
+    return contains(t, ["preguntas frecuentes", "faq", "procedimiento", "cómo funciona"])
 
-def intent_group(text):
-    return contains(text, [
-        "grupo", "telegram", "más información", "mas informacion"
-    ])
+def intent_group(t):
+    return contains(t, ["grupo", "telegram", "más info", "información", "informacion"])
 
-def intent_prices(text):
-    return contains(text, [
-        "precio", "precios",
-        "cuánto cuesta", "cuanto cuesta",
-        "cuánto vale", "cuanto vale",
-        "cuanto cobran", "cuánto cobran",
-        "lista de precios", "promo", "promoción", "promociones"
+def intent_prices(t):
+    return contains(t, [
+        "precio", "precios", "cuánto cuesta", "cuanto cuesta",
+        "cuánto vale", "cuanto vale", "lista de precios",
+        "promo", "promoción", "promociones"
     ])
 
 # -------------------------------------------
@@ -168,7 +149,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_markdown_v2(WELCOME_TEXT)
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Escribe *Quiero el de 1000* para iniciar tu pedido.")
+    await update.message.reply_text("Para iniciar un pedido escribe: *Quiero el de 1000*")
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
@@ -187,56 +168,44 @@ async def order_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ADDRESS
 
 async def ask_name(update, context):
-    address = update.message.text.strip()
-    if len(address) < 4:
-        await update.message.reply_text("La dirección parece incompleta, escríbela otra vez:")
-        return ADDRESS
-
-    context.user_data["address"] = address
+    addr = update.message.text.strip()
+    context.user_data["address"] = addr
     await update.message.reply_text("2/5 🧑 *Nombre completo de quien recibe:*")
     return NAME
 
 async def ask_phone(update, context):
     name = update.message.text.strip()
-    if len(name.split()) < 2:
-        await update.message.reply_text("Por favor escribe el *nombre completo*:")
-        return NAME
-
     context.user_data["name"] = name
     await update.message.reply_text("3/5 📱 *Número de teléfono:*")
     return PHONE
 
 async def ask_denom(update, context):
-    raw = update.message.text.strip()
-    digits = phone_digits(raw)
+    phone_raw = update.message.text.strip()
+    digits = phone_digits(phone_raw)
 
     if not phone_valid(digits):
-        await update.message.reply_text("El número parece inválido, escribe uno correcto:")
+        await update.message.reply_text("Número inválido, intenta de nuevo:")
         return PHONE
 
     context.user_data["phone"] = digits
-    await update.message.reply_text("4/5 💵 *¿Qué denominaciones deseas? (ej. 1000, paquete, etc.)*")
+    await update.message.reply_text("4/5 💵 *¿Qué denominaciones deseas?*")
     return DENOM
 
 async def ask_paymethod(update, context):
     denom = update.message.text.strip()
-
-    if not denom:
-        await update.message.reply_text("Indica una denominación válida:")
-        return DENOM
-
     context.user_data["denom"] = denom
+
     await update.message.reply_text("5/5 💳 *Elige tu método de pago:*", reply_markup=PAYMENT_KB)
     return PAYMETHOD
 
 async def confirm_and_checkout(update, context):
-    method = update.message.text.lower()
+    pm = update.message.text.lower()
 
-    if method not in ["transferencia", "depósito", "deposito"]:
+    if pm not in ["transferencia", "depósito", "deposito"]:
         await update.message.reply_text("Selecciona una opción válida:", reply_markup=PAYMENT_KB)
         return PAYMETHOD
 
-    method_clean = "Depósito" if "dep" in method else "Transferencia"
+    method_clean = "Depósito" if "dep" in pm else "Transferencia"
 
     d = context.user_data
     resumen = (
@@ -258,28 +227,28 @@ async def confirm_and_checkout(update, context):
 # ROUTER PRINCIPAL
 # -------------------------------------------
 async def router(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.lower().strip()
+    t = update.message.text.lower().strip()
 
-    if intent_order(text):
+    if intent_order(t):
         return await order_entry(update, context)
 
-    if intent_shipping(text):
+    if intent_shipping(t):
         await update.message.reply_markdown_v2(SHIPPING_TEXT)
         return ConversationHandler.END
 
-    if intent_payplaces(text):
+    if intent_payplaces(t):
         await update.message.reply_markdown_v2(PAY_PLACES_TEXT)
         return ConversationHandler.END
 
-    if intent_faq(text):
+    if intent_faq(t):
         await update.message.reply_markdown_v2(FAQ_TEXT)
         return ConversationHandler.END
 
-    if intent_group(text):
+    if intent_group(t):
         await update.message.reply_text(GROUP_TEXT, disable_web_page_preview=True)
         return ConversationHandler.END
 
-    if intent_prices(text):
+    if intent_prices(t):
         await update.message.reply_markdown_v2(PRICES_TEXT)
         return ConversationHandler.END
 
@@ -311,7 +280,7 @@ def main():
     app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(conv)
 
-    print("✅ BOT PROVEEDOR INICIADO — LISTO PARA USAR")
+    print("✅ BOT PROVEEDOR INICIADO — LISTO PARA USAR ✅")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
