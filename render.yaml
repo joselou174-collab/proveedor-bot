@@ -3,7 +3,7 @@ services:
     name: proveedor-bot
     runtime: python
     envVars:
-      TELEGRAM_TOKEN:
+      TELEGRAM_TOKEN: 8531394617:AAEmZQBRz40DQ_pSEU4-u3BKEzsrcCOj2eo
         fromSecret: TELEGRAM_TOKEN
     buildCommand: pip install -r requirements.txt
     startCommand: python bot.py
