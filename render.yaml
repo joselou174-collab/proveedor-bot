@@ -2,6 +2,6 @@ services:
   - type: worker
     name: proveedor-bot
     env: python
-    workingDirectory: .
     buildCommand: pip install -r requirements.txt
     startCommand: python bot.py
+    workingDirectory: .
