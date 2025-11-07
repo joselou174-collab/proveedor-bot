@@ -6,16 +6,12 @@ from telegram.ext import (
     ContextTypes, filters
 )
 
-# -------------------------------------------
-# VARIABLES DE ENTORNO
-# -------------------------------------------
+# TOKEN
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 if not TELEGRAM_TOKEN:
     raise RuntimeError("Falta la variable de entorno TELEGRAM_TOKEN")
 
-# -------------------------------------------
 # MENSAJES
-# -------------------------------------------
 WELCOME_TEXT = (
     "¡Hola! Somos *Proveedor*, vendemos lo mejor en el mercado. 🚀\n\n"
     "Puedo ayudarte a realizar tu pedido o resolver dudas sobre envíos, precios y pagos.\n\n"
@@ -41,7 +37,7 @@ PAY_PLACES_TEXT = (
     "• Transferencia bancaria\n"
     "• Depósitos en OXXO\n"
     "• Depósitos en Farmacia Guadalajara\n"
-    "• Tiendas que hagan depósitos\n\n"
+    "• Cualquier tienda que haga depósitos\n\n"
     "Puedo mandarte los datos exactos al finalizar tu pedido ✅"
 )
 
@@ -56,7 +52,7 @@ FAQ_TEXT = (
 GROUP_TEXT = (
     "📣 *Más información detallada aquí:*\n"
     "https://t.me/+KGNVqrk7J2VhOTY5\n\n"
-    "Canal principal, calidades, referencias e información general."
+    "Canal principal, referencias e información general."
 )
 
 PRICES_TEXT = (
@@ -65,10 +61,7 @@ PRICES_TEXT = (
     "• $2,000  →  $15,000 MXN\n"
     "• $3,000  →  $22,000 MXN\n"
     "• $4,000  →  $30,000 MXN\n"
-    "• $5,000  →  $45,000 MXN\n\n"
-    "📣 *Promociones:* pregunta si hay ofertas activas con @El_Proveedor_confiable\n"
-    "o revisa el canal de WhatsApp 📲.\n\n"
-    "¿Quieres hacer tu pedido?"
+    "• $5,000  →  $45,000 MXN\n"
 )
 
 PAYMENT_DETAILS = (
@@ -78,13 +71,10 @@ PAYMENT_DETAILS = (
     "Banco: **BBVA**\n"
     "Titular: **ELIZABET REYES**\n\n"
     "*DEPÓSITOS*\n"
-    "`4815 1631 7306 7847`\n\n"
-    "Cuando realices el pago, envía el comprobante aquí o a @El_Proveedor_confiable ✅"
+    "`4815 1631 7306 7847`\n"
 )
 
-# -------------------------------------------
-# ESTADOS PARA LA CONVERSACIÓN
-# -------------------------------------------
+# ESTADOS
 ADDRESS, NAME, PHONE, DENOM, PAYMETHOD = range(5)
 
 PAYMENT_KB = ReplyKeyboardMarkup(
@@ -93,174 +83,93 @@ PAYMENT_KB = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# -------------------------------------------
-# LOGGING
-# -------------------------------------------
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
-# -------------------------------------------
-# FUNCIONES DE INTELIGENCIA / INTENTS
-# -------------------------------------------
 def contains(text: str, kws):
     t = text.lower()
     return any(k in t for k in kws)
 
-def intent_order(t):
-    return contains(t, [
-        "como encargo", "cómo encargo",
-        "como hago el pedido", "cómo hago el pedido",
-        "quiero el de", "quiero un paquete",
-        "hacer pedido", "encargar", "ordenar", "comprar"
-    ])
+def intent_order(t): return contains(t, ["quiero", "pedido", "paquete", "encargar"])
+def intent_shipping(t): return contains(t, ["tarda", "llega", "envio"])
+def intent_payplaces(t): return contains(t, ["donde pago", "deposito", "transferencia"])
+def intent_faq(t): return contains(t, ["frecuentes", "faq"])
+def intent_group(t): return contains(t, ["grupo", "canal", "info"])
+def intent_prices(t): return contains(t, ["precio", "precios", "cuesta"])
 
-def intent_shipping(t):
-    return contains(t, ["cuanto tarda", "tarda en llegar", "envío", "envio", "entrega"])
+def phone_digits(s): return "".join(ch for ch in s if ch.isdigit())
+def phone_valid(d): return len(d) >= 10
 
-def intent_payplaces(t):
-    return contains(t, ["donde pago", "transfiero", "deposito", "depósito", "cómo pago"])
-
-def intent_faq(t):
-    return contains(t, ["preguntas frecuentes", "faq", "procedimiento", "cómo funciona"])
-
-def intent_group(t):
-    return contains(t, ["grupo", "telegram", "más info", "información", "informacion"])
-
-def intent_prices(t):
-    return contains(t, [
-        "precio", "precios", "cuánto cuesta", "cuanto cuesta",
-        "cuánto vale", "cuanto vale", "lista de precios",
-        "promo", "promoción", "promociones"
-    ])
-
-# -------------------------------------------
-# VALIDACIÓN TELÉFONO
-# -------------------------------------------
-def phone_digits(s: str):
-    return "".join(ch for ch in s if ch.isdigit())
-
-def phone_valid(d: str):
-    return len(d) >= 10
-
-# -------------------------------------------
-# COMANDOS
-# -------------------------------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_markdown_v2(WELCOME_TEXT)
 
-async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Para iniciar un pedido escribe: *Quiero el de 1000*")
-
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
-    await update.message.reply_text(
-        "✅ Proceso cancelado. Escribe *Quiero hacer el pedido* para comenzar de nuevo.",
-        reply_markup=ReplyKeyboardRemove()
-    )
+    await update.message.reply_text("Proceso cancelado ✅", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
-# -------------------------------------------
-# FLUJO DE PEDIDO
-# -------------------------------------------
-async def order_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def order_entry(update, context):
     context.user_data.clear()
-    await update.message.reply_text("1/5 📍 *Dirección completa de envío:*")
+    await update.message.reply_text("📍 Dirección completa:")
     return ADDRESS
 
 async def ask_name(update, context):
-    addr = update.message.text.strip()
-    context.user_data["address"] = addr
-    await update.message.reply_text("2/5 🧑 *Nombre completo de quien recibe:*")
+    context.user_data["address"] = update.message.text.strip()
+    await update.message.reply_text("👤 Nombre completo:")
     return NAME
 
 async def ask_phone(update, context):
-    name = update.message.text.strip()
-    context.user_data["name"] = name
-    await update.message.reply_text("3/5 📱 *Número de teléfono:*")
+    context.user_data["name"] = update.message.text.strip()
+    await update.message.reply_text("📱 Teléfono:")
     return PHONE
 
 async def ask_denom(update, context):
-    phone_raw = update.message.text.strip()
-    digits = phone_digits(phone_raw)
-
+    digits = phone_digits(update.message.text)
     if not phone_valid(digits):
-        await update.message.reply_text("Número inválido, intenta de nuevo:")
+        await update.message.reply_text("Número inválido, intenta otra vez:")
         return PHONE
-
     context.user_data["phone"] = digits
-    await update.message.reply_text("4/5 💵 *¿Qué denominaciones deseas?*")
+    await update.message.reply_text("💵 ¿Qué denominaciones deseas?")
     return DENOM
 
 async def ask_paymethod(update, context):
-    denom = update.message.text.strip()
-    context.user_data["denom"] = denom
-
-    await update.message.reply_text("5/5 💳 *Elige tu método de pago:*", reply_markup=PAYMENT_KB)
+    context.user_data["denom"] = update.message.text.strip()
+    await update.message.reply_text("💳 Método de pago:", reply_markup=PAYMENT_KB)
     return PAYMETHOD
 
 async def confirm_and_checkout(update, context):
     pm = update.message.text.lower()
-
     if pm not in ["transferencia", "depósito", "deposito"]:
-        await update.message.reply_text("Selecciona una opción válida:", reply_markup=PAYMENT_KB)
+        await update.message.reply_text("Elige una opción válida:", reply_markup=PAYMENT_KB)
         return PAYMETHOD
-
-    method_clean = "Depósito" if "dep" in pm else "Transferencia"
 
     d = context.user_data
     resumen = (
         "✅ *Resumen del pedido*\n\n"
         f"📍 Dirección: {d['address']}\n"
-        f"👤 Recibe: {d['name']}\n"
+        f"👤 Nombre: {d['name']}\n"
         f"📱 Teléfono: {d['phone']}\n"
         f"💵 Denominaciones: {d['denom']}\n"
-        f"💳 Método de pago: {method_clean}\n"
+        f"💳 Método: {pm.capitalize()}\n"
     )
 
-    await update.message.reply_markdown_v2(resumen, reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_markdown_v2(resumen)
     await update.message.reply_markdown_v2(PAYMENT_DETAILS)
-
     context.user_data.clear()
     return ConversationHandler.END
 
-# -------------------------------------------
-# ROUTER PRINCIPAL
-# -------------------------------------------
-async def router(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    t = update.message.text.lower().strip()
+async def router(update, context):
+    t = update.message.text.lower()
 
-    if intent_order(t):
-        return await order_entry(update, context)
+    if intent_order(t): return await order_entry(update, context)
+    if intent_shipping(t): return await update.message.reply_markdown_v2(SHIPPING_TEXT)
+    if intent_payplaces(t): return await update.message.reply_markdown_v2(PAY_PLACES_TEXT)
+    if intent_faq(t): return await update.message.reply_markdown_v2(FAQ_TEXT)
+    if intent_group(t): return await update.message.reply_text(GROUP_TEXT)
+    if intent_prices(t): return await update.message.reply_markdown_v2(PRICES_TEXT)
 
-    if intent_shipping(t):
-        await update.message.reply_markdown_v2(SHIPPING_TEXT)
-        return ConversationHandler.END
-
-    if intent_payplaces(t):
-        await update.message.reply_markdown_v2(PAY_PLACES_TEXT)
-        return ConversationHandler.END
-
-    if intent_faq(t):
-        await update.message.reply_markdown_v2(FAQ_TEXT)
-        return ConversationHandler.END
-
-    if intent_group(t):
-        await update.message.reply_text(GROUP_TEXT, disable_web_page_preview=True)
-        return ConversationHandler.END
-
-    if intent_prices(t):
-        await update.message.reply_markdown_v2(PRICES_TEXT)
-        return ConversationHandler.END
-
-    await update.message.reply_text(
-        "¿Deseas hacer un pedido? Escribe: *Quiero el de 1000*.\n"
-        "También respondo: *¿Cuánto tarda en llegar?*, *¿Dónde pago?*, *Precios*"
-    )
+    await update.message.reply_text("No entendí, ¿quieres hacer un pedido?")
     return ConversationHandler.END
 
-# -------------------------------------------
-# MAIN
-# -------------------------------------------
 def main():
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
@@ -277,11 +186,10 @@ def main():
     )
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(conv)
 
-    print("✅ BOT PROVEEDOR INICIADO — LISTO PARA USAR ✅")
-    app.run_polling(drop_pending_updates=True)
+    print("✅ BOT INICIADO ✅")
+    app.run_polling()
 
 if __name__ == "__main__":
     main()
