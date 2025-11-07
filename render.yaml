@@ -1,8 +1,0 @@
-services:
-  - type: worker
-    name: proveedor-bot
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python bot.py
-    workingDirectory: .
-    runtime: python-3.10
